@@ -20,8 +20,8 @@ package org.apache.parquet.thrift.projection.deprecated;
 
 import org.apache.hadoop.fs.GlobPattern;
 
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
+import com.google.re2j.Pattern;
+import com.google.re2j.PatternSyntaxException;
 
 /**
  * Enhanced version of GlobPattern class that is defined in hadoop with extra capability of matching
@@ -56,7 +56,7 @@ public class PathGlobPattern {
   }
 
   private static void error(String message, String pattern, int pos) {
-    throw new PatternSyntaxException(message, pattern, pos);
+    throw new PatternSyntaxException(String.format("%1s at %2d", message, pos), pattern);
   }
 
   /**
