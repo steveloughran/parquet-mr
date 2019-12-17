@@ -713,6 +713,7 @@ class ClientSideMetadataSplitStrategy {
     long rowGroupsDropped = 0;
     long totalRowGroups = 0;
 
+    // TODO: parallelize scan
     for (Footer footer : footers) {
       final Path file = footer.getFile();
       LOG.debug("{}", file);

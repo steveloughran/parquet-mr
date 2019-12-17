@@ -20,10 +20,14 @@
 package org.apache.parquet.hadoop.util;
 
 import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.parquet.io.PositionOutputStream;
 import java.io.IOException;
 
-public class HadoopPositionOutputStream extends PositionOutputStream {
+public class HadoopPositionOutputStream extends PositionOutputStream
+  implements IOStatisticsSource {
   private final FSDataOutputStream wrapped;
 
   HadoopPositionOutputStream(FSDataOutputStream wrapped) {
@@ -62,5 +66,14 @@ public class HadoopPositionOutputStream extends PositionOutputStream {
   @Override
   public void close() throws IOException {
     wrapped.close();
+  }
+
+  /**
+   * Return any IOStatistics provided by the underlying stream.
+   * @return IO stats from the inner stream.
+   */
+  @Override
+  public IOStatistics getIOStatistics() {
+    return IOStatisticsSupport.retrieveIOStatistics(wrapped);
   }
 }

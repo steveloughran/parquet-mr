@@ -18,6 +18,11 @@
  */
 package org.apache.parquet.hadoop;
 
+import static org.apache.hadoop.util.functional.RemoteIterators.filteringRemoteIterator;
+import static org.apache.hadoop.util.functional.RemoteIterators.mappingRemoteIterator;
+import static org.apache.hadoop.util.functional.RemoteIterators.remoteIteratorFromSingleton;
+import static org.apache.parquet.Preconditions.checkNotNull;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +34,9 @@ import java.util.Objects;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.Preconditions;
@@ -41,6 +48,7 @@ import org.apache.parquet.filter2.compat.FilterCompat.Filter;
 import org.apache.parquet.hadoop.api.ReadSupport;
 import org.apache.parquet.hadoop.util.HadoopInputFile;
 import org.apache.parquet.HadoopReadOptions;
+import org.apache.parquet.hadoop.util.HadoopStatistics;
 import org.apache.parquet.hadoop.util.HiddenFileFilter;
 import org.apache.parquet.io.InputFile;
 
@@ -51,7 +59,7 @@ import org.apache.parquet.io.InputFile;
 public class ParquetReader<T> implements Closeable {
 
   private final ReadSupport<T> readSupport;
-  private final Iterator<InputFile> filesIterator;
+  private final RemoteIterator<InputFile> filesIterator;
   private final ParquetReadOptions options;
 
   private InternalParquetRecordReader<T> reader;
@@ -108,19 +116,21 @@ public class ParquetReader<T> implements Closeable {
                         Path file,
                         ReadSupport<T> readSupport,
                         FilterCompat.Filter filter) throws IOException {
-    this(Collections.singletonList((InputFile) HadoopInputFile.fromPath(file, conf)),
+    this(
+      remoteIteratorFromSingleton(
+        HadoopInputFile.fromPath(file, conf)),
         HadoopReadOptions.builder(conf, file)
             .withRecordFilter(Objects.requireNonNull(filter, "filter cannot be null"))
             .build(),
-        readSupport);
+      readSupport);
   }
 
-  private ParquetReader(List<InputFile> files,
+  private ParquetReader(RemoteIterator<InputFile> files,
                         ParquetReadOptions options,
                         ReadSupport<T> readSupport) throws IOException {
     this.readSupport = readSupport;
     this.options = options;
-    this.filesIterator = files.iterator();
+    this.filesIterator = files;
   }
 
   /**
@@ -172,6 +182,8 @@ public class ParquetReader<T> implements Closeable {
     if (reader != null) {
       reader.close();
     }
+    HadoopStatistics.logIOStatistics(reader);
+    HadoopStatistics.logIOStatistics(filesIterator);
   }
 
   public static <T> Builder<T> read(InputFile file) throws IOException {
@@ -321,7 +333,7 @@ public class ParquetReader<T> implements Closeable {
       optionsBuilder.withCodecFactory(codecFactory);
       return this;
     }
-    
+
     public Builder<T> withDecryption(FileDecryptionProperties fileDecryptionProperties) {
       optionsBuilder.withDecryption(fileDecryptionProperties);
       return this;
@@ -348,20 +360,36 @@ public class ParquetReader<T> implements Closeable {
 
         if (stat.isFile()) {
           return new ParquetReader<>(
-              Collections.singletonList((InputFile) HadoopInputFile.fromStatus(stat, conf)),
+              remoteIteratorFromSingleton(
+                HadoopInputFile.fromStatus(stat, conf)),
               options,
               getReadSupport());
 
         } else {
-          List<InputFile> files = new ArrayList<>();
-          for (FileStatus fileStatus : fs.listStatus(path, HiddenFileFilter.INSTANCE)) {
-            files.add(HadoopInputFile.fromStatus(fileStatus, conf));
-          }
-          return new ParquetReader<T>(files, options, getReadSupport());
+          // use listFiles for incremental listing
+          RemoteIterator<LocatedFileStatus> it = fs
+            .listFiles(path, false);
+/*          while (it.hasNext()) {
+            LocatedFileStatus fileStatus = it.next();
+            if (HiddenFileFilter.INSTANCE.accept(fileStatus.getPath())) {
+              files.add(HadoopInputFile.fromStatus(fileStatus, conf));
+            }
+          }*/
+
+          return new ParquetReader<>(
+            mappingRemoteIterator(
+              filteringRemoteIterator(it,
+                (LocatedFileStatus st) ->
+                  HiddenFileFilter.INSTANCE.accept(st.getPath())),
+              (LocatedFileStatus st2) ->
+                HadoopInputFile.fromStatus(fs, st2, conf)),
+            options, getReadSupport());
         }
 
       } else {
-        return new ParquetReader<>(Collections.singletonList(file), options, getReadSupport());
+        return new ParquetReader<>(
+          remoteIteratorFromSingleton(file),
+          options, getReadSupport());
       }
     }
   }

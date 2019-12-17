@@ -33,8 +33,10 @@ import static org.apache.parquet.hadoop.ParquetFileWriter.PARQUET_COMMON_METADAT
 import static org.apache.parquet.hadoop.ParquetFileWriter.PARQUET_METADATA_FILE;
 
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InterruptedIOException;
 import java.io.SequenceInputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -58,8 +60,8 @@ import java.util.zip.CRC32;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.mapred.LocatedFileStatusFetcher;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.bytes.ByteBufferInputStream;
@@ -282,7 +284,8 @@ public class ParquetFileReader implements Closeable {
         try {
           return new Footer(currentFile.getPath(), readFooter(configuration, currentFile, filter(skipRowGroups)));
         } catch (IOException e) {
-          throw new IOException("Could not read footer for file " + currentFile, e);
+            throw new IOException("Could not read footer for file " + currentFile
+              + " : " + e.getMessage(), e);
         }
       });
     }
@@ -377,15 +380,52 @@ public class ParquetFileReader implements Closeable {
 
   private static List<FileStatus> listFiles(Configuration conf, FileStatus fileStatus) throws IOException {
     if (fileStatus.isDir()) {
-      FileSystem fs = fileStatus.getPath().getFileSystem(conf);
-      FileStatus[] list = fs.listStatus(fileStatus.getPath(), HiddenFileFilter.INSTANCE);
-      List<FileStatus> result = new ArrayList<FileStatus>();
-      for (FileStatus sub : list) {
-        result.addAll(listFiles(conf, sub));
-      }
-      return result;
+      return listLocatedFiles(conf, fileStatus);
     } else {
       return Arrays.asList(fileStatus);
+    }
+  }
+
+  /**
+   * Use the mapreduce LocatedFileStatusFetcher to recursively scan
+   * the directory tree for files.
+   * This class uses "mapreduce.input.fileinputformat.list-status.num-threads" to
+   * control the number of threads to scan.
+   * The default, 1, is suboptimal for object storage,
+   * where list latency is so high.
+   * <p></p>
+   * Although tagged as @Private, LocatedFileStatusFetcher has been promoted
+   * to @Public so that performant treescanning can be implemented in the hadoop
+   * code, with statistics collection and the like.
+   * @param conf scan configuration
+   * @param fileStatus initial file status
+   * @return the listing
+   * @throws IOException failure
+   */
+  private static List<FileStatus> listLocatedFiles(Configuration conf,
+    FileStatus fileStatus) throws IOException {
+
+    Path path = fileStatus.getPath();
+    try {
+      LocatedFileStatusFetcher locatedFileStatusFetcher
+        = new LocatedFileStatusFetcher(
+        conf,
+        new Path[]{path},
+        true,
+        HiddenFileFilter.INSTANCE,
+        true);
+      // TODO: log IOStatistics at end
+      Iterable<FileStatus> locatedFiles
+        = locatedFileStatusFetcher.getFileStatuses();
+      List<FileStatus> result = new ArrayList<>();
+      for (FileStatus sub : locatedFiles) {
+        result.add(sub);
+      }
+      return result;
+    } catch (InterruptedException e) {
+      throw (IOException) new InterruptedIOException(
+        "Interrupted while getting file statuses under " + path)
+        .initCause(e);
     }
   }
 
@@ -407,15 +447,20 @@ public class ParquetFileReader implements Closeable {
   static ParquetMetadata readSummaryMetadata(Configuration configuration, Path basePath, boolean skipRowGroups) throws IOException {
     Path metadataFile = new Path(basePath, PARQUET_METADATA_FILE);
     Path commonMetaDataFile = new Path(basePath, PARQUET_COMMON_METADATA_FILE);
-    FileSystem fileSystem = basePath.getFileSystem(configuration);
-    if (skipRowGroups && fileSystem.exists(commonMetaDataFile)) {
+    if (skipRowGroups) {
       // reading the summary file that does not contain the row groups
-      LOG.info("reading summary file: {}", commonMetaDataFile);
-      return readFooter(configuration, commonMetaDataFile, filter(skipRowGroups));
-    } else if (fileSystem.exists(metadataFile)) {
+      try {
+        LOG.info("reading summary file: {}", commonMetaDataFile);
+        return readFooter(configuration, commonMetaDataFile, filter(skipRowGroups));
+      } catch (FileNotFoundException fnfe) {
+        // fall through
+      }
+    }
+    try {
       LOG.info("reading summary file: {}", metadataFile);
       return readFooter(configuration, metadataFile, filter(skipRowGroups));
-    } else {
+    } catch (FileNotFoundException fnfe) {
+      // no summary files found
       return null;
     }
   }
