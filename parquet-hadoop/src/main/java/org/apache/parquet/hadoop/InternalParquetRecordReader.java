@@ -29,6 +29,9 @@ import java.util.stream.LongStream;
 
 import org.apache.hadoop.conf.Configuration;
 
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
 import org.apache.parquet.column.page.PageReadStore;
@@ -52,7 +55,7 @@ import static java.lang.String.format;
 import static org.apache.parquet.hadoop.ParquetInputFormat.RECORD_FILTERING_ENABLED;
 import static org.apache.parquet.hadoop.ParquetInputFormat.STRICT_TYPE_CHECKING;
 
-class InternalParquetRecordReader<T> {
+class InternalParquetRecordReader<T> implements IOStatisticsSource {
   private static final Logger LOG = LoggerFactory.getLogger(InternalParquetRecordReader.class);
 
   private ColumnIOFactory columnIOFactory = null;
@@ -318,4 +321,9 @@ class InternalParquetRecordReader<T> {
       }
     };
   }
+  @Override
+  public IOStatistics getIOStatistics() {
+    return IOStatisticsSupport.retrieveIOStatistics(reader);
+  }
+
 }

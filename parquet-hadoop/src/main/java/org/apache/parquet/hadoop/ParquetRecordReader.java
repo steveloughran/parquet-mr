@@ -28,6 +28,9 @@ import java.util.Set;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -59,7 +62,8 @@ import org.slf4j.LoggerFactory;
  *
  * @param <T> type of the materialized records
  */
-public class ParquetRecordReader<T> extends RecordReader<Void, T> {
+public class ParquetRecordReader<T> extends RecordReader<Void, T>
+  implements IOStatisticsSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(ParquetRecordReader.class);
   private final InternalParquetRecordReader<T> internalReader;
@@ -227,4 +231,10 @@ public class ParquetRecordReader<T> extends RecordReader<Void, T> {
           "Invalid split (not a FileSplit or ParquetInputSplit): " + split);
     }
   }
+
+  @Override
+  public IOStatistics getIOStatistics() {
+    return IOStatisticsSupport.retrieveIOStatistics(internalReader);
+  }
+
 }

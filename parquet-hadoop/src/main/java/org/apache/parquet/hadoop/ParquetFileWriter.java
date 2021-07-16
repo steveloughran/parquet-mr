@@ -43,6 +43,9 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.parquet.Preconditions;
 import org.apache.parquet.Version;
 import org.apache.parquet.bytes.BytesInput;
@@ -96,7 +99,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Internal implementation of the Parquet file writer as a block container
  */
-public class ParquetFileWriter {
+public class ParquetFileWriter implements IOStatisticsSource {
   private static final Logger LOG = LoggerFactory.getLogger(ParquetFileWriter.class);
 
   private final ParquetMetadataConverter metadataConverter;
@@ -396,6 +399,15 @@ public class ParquetFileWriter {
 
   public InternalFileEncryptor getEncryptor() {
     return fileEncryptor;
+  }
+
+  /**
+   * Return any IOStatistics of the underlying output stream.
+   * @return IOStatistics or null.
+   */
+  @Override
+  public IOStatistics getIOStatistics() {
+    return IOStatisticsSupport.retrieveIOStatistics(out);
   }
 
   /**

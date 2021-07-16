@@ -61,6 +61,9 @@ import java.util.zip.CRC32;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.hadoop.mapred.LocatedFileStatusFetcher;
 import org.apache.parquet.HadoopReadOptions;
 import org.apache.parquet.ParquetReadOptions;
@@ -122,7 +125,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Internal implementation of the Parquet file reader as a block container
  */
-public class ParquetFileReader implements Closeable {
+public class ParquetFileReader implements Closeable, IOStatisticsSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(ParquetFileReader.class);
 
@@ -1425,6 +1428,11 @@ public class ParquetFileReader implements Closeable {
     } finally {
       options.getCodecFactory().release();
     }
+  }
+
+  @Override
+  public IOStatistics getIOStatistics() {
+    return IOStatisticsSupport.retrieveIOStatistics(f);
   }
 
   /*

@@ -25,6 +25,9 @@ import org.slf4j.LoggerFactory;
 import org.apache.hadoop.fs.ByteBufferPositionedReadable;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.StreamCapabilities;
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 
 import java.io.EOFException;
@@ -39,9 +42,11 @@ import java.nio.ByteBuffer;
  * ByteBufferReadable; this is the fallback if ByteBufferReadable isn't
  * declared as available.
  */
-class H2SeekableInputStream extends DelegatingSeekableInputStream {
+class H2SeekableInputStream extends DelegatingSeekableInputStream
+    implements IOStatisticsSource {
+
   private static final Logger LOG =
-    LoggerFactory.getLogger(H2SeekableInputStream.class);
+      LoggerFactory.getLogger(H2SeekableInputStream.class);
 
   // Visible for testing
   interface Reader {
@@ -58,7 +63,7 @@ class H2SeekableInputStream extends DelegatingSeekableInputStream {
     this.stream = stream;
     this.reader = new H2Reader();
     useByteBufferPositionedReadable = stream.hasCapability(
-      StreamCapabilities.PREADBYTEBUFFER);
+        StreamCapabilities.PREADBYTEBUFFER);
   }
 
   @Override
@@ -77,6 +82,15 @@ class H2SeekableInputStream extends DelegatingSeekableInputStream {
     stream.seek(newPos);
   }
 
+  /**
+   * Return any IOStatistics of the underlying output stream.
+   * @return IOStatistics or null.
+   */
+  @Override
+  public IOStatistics getIOStatistics() {
+    return stream.getIOStatistics();
+  }
+
   @Override
   public void readFully(byte[] bytes, int start, int len) throws IOException {
     stream.readFully(bytes, start, len);
@@ -91,11 +105,11 @@ class H2SeekableInputStream extends DelegatingSeekableInputStream {
   public void readFully(ByteBuffer buf) throws IOException {
     if (useByteBufferPositionedReadable) {
       try {
-        ((ByteBufferPositionedReadable)(stream)).readFully(
-          stream.getPos(), buf);
+        ((ByteBufferPositionedReadable) (stream)).readFully(
+            stream.getPos(), buf);
       } catch (ClassCastException | UnsupportedOperationException e) {
         LOG.warn("Stream {} declared support for ByteBufferPositionedReadable"
-          + " yet failed to implement it. Falling back", stream, e);
+            + " yet failed to implement it. Falling back", stream, e);
         useByteBufferPositionedReadable = false;
         // and carry on into the read fully.
         // future invocations will skip the check.
@@ -125,7 +139,8 @@ class H2SeekableInputStream extends DelegatingSeekableInputStream {
     }
   }
 
-  public static void readFully(Reader reader, ByteBuffer buf) throws IOException {
+  public static void readFully(Reader reader, ByteBuffer buf)
+      throws IOException {
     // unfortunately the Hadoop APIs seem to not have a 'readFully' equivalent for the byteBuffer read
     // calls. The read(ByteBuffer) call might read fewer than byteBuffer.hasRemaining() bytes. Thus we
     // have to loop to ensure we read them.
@@ -135,7 +150,9 @@ class H2SeekableInputStream extends DelegatingSeekableInputStream {
         // this is probably a bug in the ParquetReader. We shouldn't have called readFully with a buffer
         // that has more remaining than the amount of data in the stream.
         // It can also happen if the connection to the far end closed.
-        throw new EOFException("Reached the end of stream. Still have: " + buf.remaining() + " bytes left");
+        throw new EOFException(
+            "Reached the end of stream. Still have: " + buf.remaining() +
+                " bytes left");
       }
     }
   }
