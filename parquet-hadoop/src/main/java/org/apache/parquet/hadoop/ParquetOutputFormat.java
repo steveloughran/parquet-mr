@@ -154,6 +154,9 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
   public static final String PAGE_ROW_COUNT_LIMIT = "parquet.page.row.count.limit";
   public static final String PAGE_WRITE_CHECKSUM_ENABLED = "parquet.page.write-checksum.enabled";
 
+  /** What mode to create files with: {@value}. */
+  private static final Mode DEFAULT_OVERWRITE_MODE = Mode.OVERWRITE;
+
   public static JobSummaryLevel getJobSummaryLevel(Configuration conf) {
     String level = conf.get(JOB_SUMMARY_LEVEL);
     String deprecatedFlag = conf.get(ENABLE_JOB_SUMMARY);
@@ -406,7 +409,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
   @Override
   public RecordWriter<Void, T> getRecordWriter(TaskAttemptContext taskAttemptContext)
       throws IOException, InterruptedException {
-    return getRecordWriter(taskAttemptContext, Mode.CREATE);
+    return getRecordWriter(taskAttemptContext, DEFAULT_OVERWRITE_MODE);
   }
 
   public RecordWriter<Void, T> getRecordWriter(TaskAttemptContext taskAttemptContext, Mode mode)
@@ -422,7 +425,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
 
   public RecordWriter<Void, T> getRecordWriter(TaskAttemptContext taskAttemptContext, Path file)
     throws IOException, InterruptedException {
-    return getRecordWriter(taskAttemptContext, file, Mode.CREATE);
+    return getRecordWriter(taskAttemptContext, file, DEFAULT_OVERWRITE_MODE);
   }
 
   public RecordWriter<Void, T> getRecordWriter(TaskAttemptContext taskAttemptContext, Path file, Mode mode)
@@ -432,7 +435,7 @@ public class ParquetOutputFormat<T> extends FileOutputFormat<Void, T> {
 
   public RecordWriter<Void, T> getRecordWriter(Configuration conf, Path file, CompressionCodecName codec)
       throws IOException, InterruptedException {
-    return getRecordWriter(conf, file, codec, Mode.CREATE);
+    return getRecordWriter(conf, file, codec, DEFAULT_OVERWRITE_MODE);
   }
 
   public RecordWriter<Void, T> getRecordWriter(Configuration conf, Path file, CompressionCodecName codec, Mode mode)
