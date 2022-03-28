@@ -100,7 +100,7 @@ public class HadoopInputFile implements InputFile {
     FutureDataInputStreamBuilder builder = fs.openFile(getPath())
       .opt("fs.s3a.experimental.input.fadvise", "random")
       .opt("fs.s3a.readahead.range", 1024 * 1024)
-      .opt("fs.option.openfile.read.policy", "parquet, random");
+      .opt("fs.option.openfile.read.policy", "random");
 
     if (length > 0) {
       builder.opt("fs.option.openfile.length", length);
