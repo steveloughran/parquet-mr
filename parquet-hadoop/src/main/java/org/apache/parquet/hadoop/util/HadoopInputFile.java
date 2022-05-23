@@ -95,6 +95,11 @@ public class HadoopInputFile implements InputFile {
     return length;
   }
 
+  /**
+   * Open a stream using the openFile API and requesting random IO.
+   * Also passing in the length if known.
+   * {@inheritDoc}.
+   */
   @Override
   public SeekableInputStream newStream() throws IOException {
     FutureDataInputStreamBuilder builder = fs.openFile(getPath())
@@ -102,9 +107,13 @@ public class HadoopInputFile implements InputFile {
       .opt("fs.s3a.readahead.range", 1024 * 1024)
       .opt("fs.option.openfile.read.policy", "random");
 
+    // convert to a string so that all hadoop releases with the openfile
+    // API will linl
     if (length > 0) {
-      builder.opt("fs.option.openfile.length", length);
+      builder.opt("fs.option.openfile.length",
+        Long.toString(length));
     }
+    // open the stream, which may be asynchronous.
     CompletableFuture<FSDataInputStream> streamF = builder.build();
     return HadoopStreams.wrap(awaitFuture(streamF));
   }

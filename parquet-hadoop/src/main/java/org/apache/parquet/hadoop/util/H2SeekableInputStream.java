@@ -27,7 +27,6 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.statistics.IOStatistics;
 import org.apache.hadoop.fs.statistics.IOStatisticsSource;
-import org.apache.hadoop.fs.statistics.IOStatisticsSupport;
 import org.apache.parquet.io.DelegatingSeekableInputStream;
 
 import java.io.EOFException;
