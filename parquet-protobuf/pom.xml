@@ -187,6 +187,14 @@
       </plugin>
 
     </plugins>
+    <extensions>
+      <!-- fills in os.detected.classifier and other properties from the OS system properties -->
+      <extension>
+        <groupId>kr.motd.maven</groupId>
+        <artifactId>os-maven-plugin</artifactId>
+        <version>1.7.0</version>
+      </extension>
+    </extensions>
   </build>
   <profiles>
     <!-- PARQUET-2150: Force use of x86 executable for all macOS systems,
@@ -213,6 +221,8 @@
       <properties>
         <build.platform>Mac_OS_X-${sun.arch.data.model}</build.platform>
         <!-- To make protoc work on Apple Silicon via fallback -->
+        <!-- This overrides the value determined by the os-maven-plugin extension. -->
+        <!-- It will to force use of the x86 parquet binaries on all Mac platforms -->
         <os.detected.classifier>osx-x86_64</os.detected.classifier>
       </properties>
     </profile>
