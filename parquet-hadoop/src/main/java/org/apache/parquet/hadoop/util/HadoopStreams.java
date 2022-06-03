@@ -38,9 +38,6 @@ public class HadoopStreams {
 
   private static final Logger LOG = LoggerFactory.getLogger(HadoopStreams.class);
 
-  private static final Class<?> byteBufferReadableClass = getReadableClass();
-  static final Constructor<SeekableInputStream> h2SeekableConstructor = getH2SeekableConstructor();
-
   /**
    * Wraps a {@link FSDataInputStream} in a {@link SeekableInputStream}
    * implementation for Parquet readers.
@@ -50,50 +47,7 @@ public class HadoopStreams {
    */
   public static SeekableInputStream wrap(FSDataInputStream stream) {
     Objects.requireNonNull(stream, "Cannot wrap a null input stream");
-    if (byteBufferReadableClass != null && h2SeekableConstructor != null &&
-        byteBufferReadableClass.isInstance(stream.getWrappedStream())) {
-      try {
-        return h2SeekableConstructor.newInstance(stream);
-      } catch (InstantiationException | IllegalAccessException e) {
-        LOG.warn("Could not instantiate H2SeekableInputStream, falling back to byte array reads", e);
-        return new H1SeekableInputStream(stream);
-      } catch (InvocationTargetException e) {
-        throw new ParquetDecodingException(
-            "Could not instantiate H2SeekableInputStream", e.getTargetException());
-      }
-    } else {
-      return new H1SeekableInputStream(stream);
-    }
-  }
-
-  private static Class<?> getReadableClass() {
-    try {
-      return Class.forName("org.apache.hadoop.fs.ByteBufferReadable");
-    } catch (ClassNotFoundException | NoClassDefFoundError e) {
-      return null;
-    }
-  }
-
-  @SuppressWarnings("unchecked")
-  private static Class<SeekableInputStream> getH2SeekableClass() {
-    try {
-      return (Class<SeekableInputStream>) Class.forName(
-          "org.apache.parquet.hadoop.util.H2SeekableInputStream");
-    } catch (ClassNotFoundException | NoClassDefFoundError e) {
-      return null;
-    }
-  }
-
-  private static Constructor<SeekableInputStream> getH2SeekableConstructor() {
-    Class<SeekableInputStream> h2SeekableClass = getH2SeekableClass();
-    if (h2SeekableClass != null) {
-      try {
-        return h2SeekableClass.getConstructor(FSDataInputStream.class);
-      } catch (NoSuchMethodException e) {
-        return null;
-      }
-    }
-    return null;
+    return new H2SeekableInputStream(stream);
   }
 
   /**
