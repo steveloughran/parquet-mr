@@ -71,6 +71,7 @@
     <japicmp.version>0.14.2</japicmp.version>
     <shade.prefix>shaded.parquet</shade.prefix>
     <hadoop.version>3.3.5</hadoop.version>
+    <hadoop-api-shim.version>1.0-SNAPSHOT</hadoop-api-shim.version>
     <parquet.format.version>2.9.0</parquet.format.version>
     <previous.version>1.13.0</previous.version>
     <thrift.executable>thrift</thrift.executable>
@@ -211,6 +212,12 @@
           </exclusion>
         </exclusions>
       </dependency>
+      <dependency>
+        <groupId>org.apache.hadoop.extensions</groupId>
+        <artifactId>hadoop-api-shim</artifactId>
+        <version>${hadoop-api-shim.version}</version>
+      </dependency>
+
     </dependencies>
   </dependencyManagement>
 
